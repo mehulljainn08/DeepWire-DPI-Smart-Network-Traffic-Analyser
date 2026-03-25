@@ -10,7 +10,7 @@
 
 #include <iostream>
 #include <pcap/pcap.h>
-#include "flow_data.h"
+#include "../common/flow_data.h"
 
 int main()
 {
