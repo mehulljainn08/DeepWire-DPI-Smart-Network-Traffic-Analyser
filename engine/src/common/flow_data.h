@@ -84,6 +84,7 @@ struct FlowEvent {
     uint16_t    dest_port;
     std::string protocol;
     std::string sni_domain;     // Extracted by Protocol Inspector (empty if not found)
+    std::string country_code;   // 2-letter ISO country code resolved via Geo-IP (empty if unresolved)
     std::string status;         // "NEW_FLOW", "ACTIVE", "CLOSED", "BLOCKED"
 };
 

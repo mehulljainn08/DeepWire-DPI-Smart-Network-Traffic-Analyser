@@ -5,7 +5,8 @@
 //
 // PURPOSE:
 //   Listens on a Unix Domain Socket for JSON flow events from the C++ engine.
-//   Matches incoming SNI domains against a blocklist and executes OS-level
+//   Performs Geo-IP country lookups against a MaxMind GeoLite2 database,
+//   matches incoming SNI domains against a blocklist, and executes OS-level
 //   firewall rules to drop blacklisted connections in real-time.
 //
 // RUN:
@@ -40,11 +41,37 @@ type FlowEvent struct {
 
 const socketPath = "/tmp/deepwire.sock"
 
+// ============================================================================
+// Geo-IP Configuration
+// ============================================================================
+// Path to the MaxMind GeoLite2 Country database (.mmdb file).
+// Download from: https://www.maxmind.com/en/geolite2/signup
+// Place the file in the control-plane/rules/ directory.
+// ============================================================================
+const geoIPDatabasePath = "rules/GeoLite2-Country.mmdb"
+
+// allowedCountries is the set of 2-letter ISO country codes that are
+// permitted to communicate with our network.  Any source IP resolving
+// to a country NOT in this set will be blocked at the OS firewall level.
+// Set to nil or empty to disable country filtering entirely.
+var allowedCountries = map[string]bool{
+	"IN": true, // India
+	"US": true, // United States
+}
+
 func main() {
 	fmt.Println("=== DeepWire DPI — Control Plane ===")
 
+	// --- Initialize Geo-IP database ---
+	geoIPReady := loadGeoIPDatabase(geoIPDatabasePath)
+	if geoIPReady {
+		fmt.Printf("[Control] Geo-IP database loaded. Allowed countries: %v\n", allowedCountryList())
+	} else {
+		fmt.Println("[Control] ⚠️  Geo-IP database not loaded — country filtering DISABLED")
+	}
+
 	// --- Load blocklist ---
-	blocklist := loadBlocklist("blocklist.txt")
+	blocklist := loadBlocklist("rules/blocklist.txt")
 	fmt.Printf("[Control] Loaded %d blocked domains\n", len(blocklist))
 	for _, domain := range blocklist {
 		fmt.Printf("  🚫 %s\n", domain)
@@ -83,12 +110,12 @@ func main() {
 			continue
 		}
 		fmt.Println("[Control] Engine connected!")
-		go handleConnection(conn, blocklist)
+		go handleConnection(conn, blocklist, geoIPReady)
 	}
 }
 
 // handleConnection reads newline-delimited JSON from the C++ engine
-func handleConnection(conn net.Conn, blocklist []string) {
+func handleConnection(conn net.Conn, blocklist []string, geoIPEnabled bool) {
 	defer conn.Close()
 	scanner := bufio.NewScanner(conn)
 
@@ -106,7 +133,19 @@ func handleConnection(conn net.Conn, blocklist []string) {
 			event.DestIP, event.DestPort,
 			event.SNIDomain, event.Status)
 
-		// --- Check blocklist ---
+		// --- Geo-IP country check (runs BEFORE blocklist for early rejection) ---
+		if geoIPEnabled {
+			countryCode, allowed := checkGeoIP(event.SrcIP)
+			if !allowed {
+				fmt.Printf("[Control] 🌍 GEO-BLOCKED: %s (country: %s) → Injecting firewall rule\n",
+					event.SrcIP, countryCode)
+				// TODO (Sprint 4): Execute iptables DROP rule for this source IP
+				continue // Skip further processing — this packet is rejected
+			}
+			fmt.Printf("[Control] 🌍 Geo-IP OK: %s → %s\n", event.SrcIP, countryCode)
+		}
+
+		// --- Check domain blocklist ---
 		if isBlocked(event.SNIDomain, blocklist) {
 			fmt.Printf("[Control] 🚨 BLOCKED: %s → Injecting firewall rule for %s\n",
 				event.SNIDomain, event.DestIP)
@@ -119,6 +158,65 @@ func handleConnection(conn net.Conn, blocklist []string) {
 
 	fmt.Println("[Control] Engine disconnected.")
 }
+
+// ============================================================================
+// Geo-IP Functions
+// ============================================================================
+
+// loadGeoIPDatabase opens the MaxMind .mmdb file and prepares the reader.
+// Returns true if the database was loaded successfully.
+//
+// TODO: Integrate the oschwald/geoip2-golang library:
+//
+//	import "github.com/oschwald/geoip2-golang"
+//
+//	db, err := geoip2.Open(path)
+//	if err != nil { ... }
+//	defer db.Close()
+//
+// Store the *geoip2.Reader in a package-level variable for use in checkGeoIP().
+func loadGeoIPDatabase(path string) bool {
+	// Check if the .mmdb file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		log.Printf("[Control] Geo-IP database not found at: %s", path)
+		log.Printf("[Control] Download from: https://www.maxmind.com/en/geolite2/signup")
+		log.Printf("[Control] Place GeoLite2-Country.mmdb in the rules/ directory")
+		return false
+	}
+
+	// TODO: Open the database using geoip2.Open(path)
+	// Store the reader handle for use in checkGeoIP()
+	fmt.Printf("[Control] Geo-IP database found: %s\n", path)
+	return true
+}
+
+// checkGeoIP looks up the source IP in the MaxMind database and returns
+// the 2-letter ISO country code and whether the country is allowed.
+//
+// TODO: Implement actual lookup using the geoip2 reader:
+//
+//	ip := net.ParseIP(srcIP)
+//	record, err := db.Country(ip)
+//	if err != nil { return "??", true }  // fail-open on lookup errors
+//	code := record.Country.IsoCode
+//	return code, allowedCountries[code]
+func checkGeoIP(srcIP string) (countryCode string, allowed bool) {
+	// Stub: fail-open until the .mmdb reader is integrated
+	return "??", true
+}
+
+// allowedCountryList returns a sorted slice of allowed country codes for display.
+func allowedCountryList() []string {
+	list := make([]string, 0, len(allowedCountries))
+	for code := range allowedCountries {
+		list = append(list, code)
+	}
+	return list
+}
+
+// ============================================================================
+// Blocklist Functions
+// ============================================================================
 
 // loadBlocklist reads domains from a file (one per line)
 func loadBlocklist(filename string) []string {
