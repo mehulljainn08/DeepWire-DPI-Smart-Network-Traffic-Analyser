@@ -1,0 +1,31 @@
+# === Build Artifacts ===
+engine/build/
+*.o
+*.d
+
+# === Binaries ===
+ingress_service
+state_service
+inspec_service
+
+# === Go ===
+control-plane/control-plane
+control-plane/blocklist.txt
+
+# === OS / Editor ===
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# === IPC Socket ===
+/tmp/deepwire.sock
+
+# === CMake ===
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json

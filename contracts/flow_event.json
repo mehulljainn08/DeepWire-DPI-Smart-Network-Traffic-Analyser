@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DeepWire FlowEvent",
+  "description": "IPC data contract between the C++ DPI engine and Go control plane. Every message sent over the Unix Domain Socket MUST conform to this schema.",
+  "type": "object",
+  "required": ["timestamp", "src_ip", "src_port", "dest_ip", "dest_port", "protocol", "sni_domain", "status"],
+  "properties": {
+    "timestamp": {
+      "type": "integer",
+      "description": "Unix epoch timestamp when the flow event was generated"
+    },
+    "src_ip": {
+      "type": "string",
+      "description": "Source IP address (IPv4 or IPv6)",
+      "examples": ["192.168.1.15"]
+    },
+    "src_port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "Source TCP/UDP port number"
+    },
+    "dest_ip": {
+      "type": "string",
+      "description": "Destination IP address (IPv4 or IPv6)",
+      "examples": ["142.250.190.46"]
+    },
+    "dest_port": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "description": "Destination TCP/UDP port number"
+    },
+    "protocol": {
+      "type": "string",
+      "enum": ["TCP", "UDP"],
+      "description": "Transport layer protocol"
+    },
+    "sni_domain": {
+      "type": "string",
+      "description": "Extracted SNI domain from TLS Client Hello. Empty string if not found.",
+      "examples": ["youtube.com", ""]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["NEW_FLOW", "ACTIVE", "CLOSED", "BLOCKED"],
+      "description": "Current lifecycle state of the flow"
+    }
+  },
+  "additionalProperties": false
+}
