@@ -78,9 +78,11 @@ DeepWire follows a **polyglot, decoupled architecture**:
   "sni_domain": "youtube.com",
   "status": "NEW_FLOW"
 }
+```
 
+## 📂 Repository Structure
 
-📂 Repository Structure
+```text
 deepwire-dpi/
 ├── engine/                 # C++ DPI engine (libpcap, TCP reassembly)
 │   ├── src/
@@ -90,99 +92,111 @@ deepwire-dpi/
 │   └── main.go
 ├── contracts/              # Shared IPC schemas
 └── README.md
+```
 
+## ⚙️ Tech Stack
 
-⚙️ Tech Stack
-	•	Languages: C++ (17), Go (1.21)
-	•	Networking: libpcap, TCP/IP
-	•	Concurrency: Goroutines, worker pools
-	•	IPC: Unix Domain Sockets / TCP
-	•	System Integration: iptables, Windows Firewall
-	•	Build Tools: CMake
+- **Languages:** C++ (17), Go (1.21)
+- **Networking:** libpcap, TCP/IP
+- **Concurrency:** Goroutines, worker pools
+- **IPC:** Unix Domain Sockets / TCP
+- **System Integration:** iptables, Windows Firewall
+- **Build Tools:** CMake
 
+## ⚖️ Design Decisions
 
-⚖️ Design Decisions
-	•	C++ for Engine: Fine-grained memory control and high-performance packet parsing
-	•	Go for Control Plane: Efficient concurrency and simplicity in rule handling
-	•	IPC-based Communication: Loose coupling, modularity, and fault isolation
-	•	SNI-based DPI: Enables domain filtering without TLS decryption
+- **C++ for Engine:** Fine-grained memory control and high-performance packet parsing
+- **Go for Control Plane:** Efficient concurrency and simplicity in rule handling
+- **IPC-based Communication:** Loose coupling, modularity, and fault isolation
+- **SNI-based DPI:** Enables domain filtering without TLS decryption
 
-⚡ Performance (Planned / Measurable)
-	•	Packet throughput: High-throughput (target: 100K+ packets/sec)
-	•	Low-latency enforcement: Near real-time (< few ms)
-	•	Efficient memory usage via optimized flow tracking
+## ⚡ Performance (Planned / Measurable)
 
-(To be benchmarked and optimized further)
+- **Packet throughput:** High-throughput (target: 100K+ packets/sec)
+- **Low-latency enforcement:** Near real-time (< few ms)
+- **Efficient memory usage** via optimized flow tracking
 
-🚀 Quick Start
+*(To be benchmarked and optimized further)*
 
-Prerequisites
-	•	C++ Engine:
-	•	cmake (3.10+)
-	•	make
-	•	libpcap-dev
+## 🚀 Quick Start
 
+### Prerequisites
+
+- **C++ Engine:**
+  - cmake (3.10+)
+  - make
+  - libpcap-dev
+
+```bash
 sudo apt-get install libpcap-dev
+```
 
+- **Go Control Plane:**
+  - Go 1.21+
+- **Permissions:**
+  - Root/Admin required
 
-	•	Go Control Plane:
-	•	Go 1.21+
-	•	Permissions:
-	•	Root/Admin required
+### 1. Build the C++ Engine
 
-1. Build the C++ Engine
-
+```bash
 cd engine
 mkdir build && cd build
 cmake ..
 make
+```
 
-2. Run the Control Plane
+### 2. Run the Control Plane
+
+```bash
 cd control-plane
 go run main.go
+```
 
-3. Start the Engine
+### 3. Start the Engine
+
+```bash
 sudo ./engine_node
+```
 
 
 
-🛠️ Development Guidelines
+## 🛠️ Development Guidelines
 
-Engine Team (C++)
-	•	Ensure memory safety and bounds checking
-	•	Optimize pointer arithmetic and parsing
-	•	Prevent memory leaks under high throughput
+### Engine Team (C++)
+- Ensure memory safety and bounds checking
+- Optimize pointer arithmetic and parsing
+- Prevent memory leaks under high throughput
 
-Control Plane Team (Go)
-	•	Handle concurrency and race conditions
-	•	Optimize worker pool throughput
-	•	Ensure safe execution of firewall commands
-
-⸻
-
-🔮 Future Enhancements
-	•	HTTP/2 and QUIC inspection support
-	•	AI-based domain classification
-	•	Web dashboard for rule management
-	•	Redis-based rule caching
-	•	eBPF integration for kernel-level performance
-	•	Kubernetes deployment
+### Control Plane Team (Go)
+- Handle concurrency and race conditions
+- Optimize worker pool throughput
+- Ensure safe execution of firewall commands
 
 ⸻
 
-🧠 Technical Highlights
-	•	Implemented TCP stream reassembly using flow-based state tracking
-	•	Designed IPC pipeline for cross-language communication
-	•	Built concurrent rule engine using goroutines
-	•	Integrated real-time firewall enforcement at OS level
+## 🔮 Future Enhancements
+- HTTP/2 and QUIC inspection support
+- AI-based domain classification
+- Web dashboard for rule management
+- Redis-based rule caching
+- eBPF integration for kernel-level performance
+- Kubernetes deployment
 
 ⸻
 
-📌 Use Cases
-	•	Enterprise network monitoring
-	•	Parental control systems
-	•	Malware and phishing domain blocking
-	•	Network policy enforcement in organizations
+## 🧠 Technical Highlights
+- Implemented TCP stream reassembly using flow-based state tracking
+- Designed IPC pipeline for cross-language communication
+- Built concurrent rule engine using goroutines
+- Integrated real-time firewall enforcement at OS level
+
+⸻
+
+## 📌 Use Cases
+- Enterprise network monitoring
+- Parental control systems
+- Malware and phishing domain blocking
+- Network policy enforcement in organizations
 
 ⸻
 
