@@ -45,9 +45,10 @@ Here's what that means in practice:
 
 DeepWire utilizes an Inter-Process Communication (IPC) architecture to bridge low-level system memory with high-level concurrent routing.
 
-1. **The Core Engine (`/engine` - C++):** Built with `libpcap`, this daemon binds to the network interface card in promiscuous mode. It is divided into isolated services: handling raw ingress, tracking stateful TCP flows via optimized hash maps, and executing custom pointer algorithms to extract SNI domains.
-2. **The IPC Bridge (`/contracts`):** Extracted flow data is serialized into strict JSON contracts and streamed over a local Unix Domain Socket or TCP port, fully decoupling the engine from the firewall logic.
+1. **The Core Engine (`/engine` - C++):** Built with `libpcap`, this daemon binds to the network interface card in promiscuous mode. It is divided into 4 isolated services: handling raw ingress, tracking stateful TCP flows via optimized hash maps, executing custom pointer algorithms to extract SNI domains, and bridging the data to the control plane via IPC.
+2. **The IPC Bridge (`/engine/src/ipc_bridge` + `/contracts`):** Reads from a thread-safe queue, serializes `FlowEvent` records into strict JSON contracts (matching `/contracts/flow_event.json`), and streams them over a local Unix Domain Socket, fully decoupling the engine from the firewall logic.
 3. **The Control Plane (`/control-plane` - Go):** A highly concurrent worker pool that ingests the IPC stream. It runs heuristic anomaly detection, checks IPs against a Geo-IP database, matches domains against a rule engine, and displays live metrics on a Terminal User Interface (TUI).
+4. **Monitoring Stack (`/docker`):** A Docker Compose stack providing Prometheus metrics collection and Grafana dashboards for real-time observability of the control plane.
 
 ---
 
@@ -74,18 +75,31 @@ The C++ engine and Go control plane communicate strictly via the following share
 
 ```
 deepwire-dpi/
-├── engine/                       # C++ libpcap packet sniffer and DPI engine
+├── .github/
+│   └── workflows/
+│       └── ci.yml                    # GitHub Actions CI (C++ build + Go build)
+├── engine/                           # C++ libpcap packet sniffer and DPI engine
 │   ├── src/
-│   │   ├── common/               # Shared structs and headers (e.g., flow_data.h)
-│   │   ├── ingress_handler/      # L2/L3 Packet capture, BPF filters, and header stripping
-│   │   ├── flow_state/           # L4 Session tracking and Garbage Collection
-│   │   └── protocol_inspec/      # L7 TLS/SNI Deep Packet Inspection
-│   ├── include/                  # Public headers
-│   └── CMakeLists.txt            # Multi-executable CMake build configuration
-├── control-plane/                # Go concurrent listener and firewall enforcer
-│   ├── rules/                    # Blocklists and MaxMind MMDB files
-│   └── main.go                   # Goroutine worker pool, Geo-IP logic, and OS exec
-├── contracts/                    # Shared data schemas (JSON/Protobuf)
+│   │   ├── common/                   # Shared structs and headers (flow_data.h)
+│   │   ├── ingress_handler/          # L2/L3 Packet capture, BPF filters, header stripping
+│   │   ├── flow_state/               # L4 Session tracking and Garbage Collection
+│   │   ├── protocol_inspec/          # L7 TLS/SNI Deep Packet Inspection
+│   │   └── ipc_bridge/              # IPC serialization and Unix Domain Socket bridge
+│   ├── include/                      # Public headers
+│   └── CMakeLists.txt                # Multi-executable CMake build (4 targets)
+├── control-plane/                    # Go concurrent listener and firewall enforcer
+│   ├── rules/                        # Blocklists and MaxMind MMDB files
+│   └── main.go                       # Goroutine worker pool, Geo-IP, and OS exec
+├── contracts/                        # Shared IPC data schemas (JSON)
+│   └── flow_event.json               # FlowEvent JSON schema contract
+├── docker/                           # Monitoring infrastructure
+│   ├── docker-compose.monitoring.yml # Prometheus + Grafana stack
+│   ├── prometheus/
+│   │   └── prometheus.yml            # Scrape config for control plane metrics
+│   └── grafana/
+│       └── provisioning/
+│           └── datasources/
+│               └── datasource.yml    # Auto-provisions Prometheus datasource
 └── README.md
 ```
 
@@ -111,7 +125,7 @@ cmake ..
 make
 ```
 
-> This will output `ingress_service`, `state_service`, and `inspec_service` executables.
+> This will output `ingress_service`, `state_service`, `inspec_service`, and `ipc_service` executables.
 
 ### 2. Run the Go Control Plane
 
@@ -141,4 +155,5 @@ This project operates on strict architectural boundaries. Development is compart
 | **Ingress Handler** | C++ | BPF compilation, raw pcap ingestion, verifying Ethernet/IPv4 integrity, and safely jumping variable-length L3/L4 headers. |
 | **Flow State** | C++ | 5-tuple TCP session tracking, hash collision mitigation, and connection garbage collection to prevent OOM errors during traffic spikes. |
 | **Protocol Inspection** | C++ | Safe pointer arithmetic through variable-length TLS extensions to extract plaintext domain names without triggering segmentation faults. |
+| **IPC Bridge** | C++ | Thread-safe queue consumption, JSON serialization of `FlowEvent` records, and Unix Domain Socket streaming to the Go control plane. |
 | **Control Plane** | Go | Goroutine orchestration, Geo-IP database lookups, heuristic rate-limiting, and safe execution of OS-level firewall drops. |

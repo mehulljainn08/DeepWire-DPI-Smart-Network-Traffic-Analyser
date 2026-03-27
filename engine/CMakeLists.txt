@@ -41,3 +41,10 @@ add_executable(inspec_service
     src/protocol_inspec/main.cpp
 )
 target_link_libraries(inspec_service ${PCAP_LIBRARY})
+
+# --- IPC Bridge Service ---
+# Responsible for thread-safe queue consumption and Unix Domain Socket IPC
+add_executable(ipc_service
+    src/ipc_bridge/main.cpp
+)
+target_link_libraries(ipc_service ${PCAP_LIBRARY} pthread)

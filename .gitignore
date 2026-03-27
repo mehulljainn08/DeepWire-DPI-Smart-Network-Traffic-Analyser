@@ -7,10 +7,13 @@ engine/build/
 ingress_service
 state_service
 inspec_service
+ipc_service
 
 # === Go ===
 control-plane/control-plane
-control-plane/blocklist.txt
+
+# === Geo-IP / MaxMind ===
+*.mmdb
 
 # === OS / Editor ===
 .DS_Store

@@ -1,0 +1,12 @@
+# ============================================================================
+# DeepWire DPI — Domain Blocklist
+# ============================================================================
+# Add one domain per line.  Subdomains are matched automatically.
+# (e.g., "youtube.com" will also block "m.youtube.com")
+# Lines starting with # are comments.
+# ============================================================================
+
+youtube.com
+facebook.com
+instagram.com
+tiktok.com

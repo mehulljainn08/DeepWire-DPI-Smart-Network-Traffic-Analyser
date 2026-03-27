@@ -1,11 +1,33 @@
-#ifndef DEEPWIRE_FLOW_DATA_H
-#define DEEPWIRE_FLOW_DATA_H
+#pragma once
 
 #include <cstdint>
 #include <string>
 #include <ctime>
 
 namespace deepwire {
+
+// ============================================================================
+// FlowStatus: Lifecycle state of a tracked connection
+// ============================================================================
+enum class FlowStatus {
+    NEW_FLOW,        // SYN seen, connection is being established
+    EXISTING_FLOW,   // Active data transfer in progress
+    CLOSED           // FIN/RST seen, connection torn down
+};
+
+// ============================================================================
+// FlowRecord: Canonical record passed between all 4 engine services
+//             Contains the 5-tuple, extracted SNI domain, and flow status.
+// ============================================================================
+struct FlowRecord {
+    std::string src_ip;
+    std::string dest_ip;
+    uint16_t    src_port;
+    uint16_t    dest_port;
+    std::string protocol;       // "TCP" or "UDP"
+    std::string sni_domain;     // Populated by Protocol Inspector (empty until then)
+    FlowStatus  status;         // Current lifecycle state
+};
 
 // ============================================================================
 // FlowKey: Uniquely identifies a TCP/UDP flow (the "5-tuple")
@@ -84,9 +106,8 @@ struct FlowEvent {
     uint16_t    dest_port;
     std::string protocol;
     std::string sni_domain;     // Extracted by Protocol Inspector (empty if not found)
+    std::string country_code;   // 2-letter ISO country code resolved via Geo-IP (empty if unresolved)
     std::string status;         // "NEW_FLOW", "ACTIVE", "CLOSED", "BLOCKED"
 };
 
 } // namespace deepwire
-
-#endif // DEEPWIRE_FLOW_DATA_H

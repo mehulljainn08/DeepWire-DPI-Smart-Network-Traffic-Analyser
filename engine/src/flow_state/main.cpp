@@ -8,15 +8,14 @@
 // Run:   ./state_service
 // ============================================================================
 
+#include "../common/flow_data.h"
 #include <iostream>
 #include <unordered_map>
-#include "../common/flow_data.h"
+using namespace std;
+int main() {
+  cout << "=== DeepWire DPI — Flow State Service ===" << endl;
 
-int main()
-{
-    std::cout << "=== DeepWire DPI — Flow State Service ===" << std::endl;
+  // TODO: Your implementation goes here
 
-    // TODO: Your implementation goes here
-
-    return 0;
+  return 0;
 }
