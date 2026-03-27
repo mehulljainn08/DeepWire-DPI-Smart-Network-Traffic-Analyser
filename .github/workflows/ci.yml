@@ -1,0 +1,48 @@
+name: DeepWire DPI CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # =========================================================================
+  # C++ Engine — Build all 4 services
+  # =========================================================================
+  build-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev cmake g++
+
+      - name: Configure CMake
+        working-directory: engine
+        run: mkdir -p build && cd build && cmake ..
+
+      - name: Build all services
+        working-directory: engine/build
+        run: make -j$(nproc)
+
+  # =========================================================================
+  # Go Control Plane — Build & vet
+  # =========================================================================
+  build-control-plane:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Build
+        working-directory: control-plane
+        run: go build -v ./...
+
+      - name: Vet
+        working-directory: control-plane
+        run: go vet ./...

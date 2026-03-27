@@ -7,6 +7,7 @@ engine/build/
 ingress_service
 state_service
 inspec_service
+ipc_service
 
 # === Go ===
 control-plane/control-plane

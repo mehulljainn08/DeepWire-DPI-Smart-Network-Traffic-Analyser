@@ -11,9 +11,9 @@
 #include "../common/flow_data.h"
 #include <iostream>
 #include <unordered_map>
-
+using namespace std;
 int main() {
-  std::cout << "=== DeepWire DPI — Flow State Service ===" << std::endl;
+  cout << "=== DeepWire DPI — Flow State Service ===" << endl;
 
   // TODO: Your implementation goes here
 
