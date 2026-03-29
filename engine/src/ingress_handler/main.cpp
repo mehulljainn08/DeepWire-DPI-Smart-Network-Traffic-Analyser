@@ -37,27 +37,15 @@ static const char *BPF_FILTER_EXPRESSION = "tcp port 443";
 // ----------------------------------------------------------------------------
 int compile_and_attach_bpf(pcap_t *handle, const char *filter,
                            bpf_u_int32 net) {
-  struct bpf_program compiled_filter;
+  // TODO: Implement Berkeley Packet Filter (BPF) logic here.
+  // 1. Declare a `struct bpf_program`.
+  // 2. Use `pcap_compile()` to compile the string `filter` into bytecode.
+  // 3. Check for compilation errors and print `pcap_geterr(handle)` if it fails.
+  // 4. Use `pcap_setfilter()` to load the compiled bytecode into the kernel.
+  // 5. Use `pcap_freecode()` to free the bytecode from memory when done.
+  // 6. Return 0 on success, or -1 on failure.
 
-  // pcap_compile() translates the human-readable filter string into
-  // BPF bytecode that the kernel can execute on every incoming frame.
-  if (pcap_compile(handle, &compiled_filter, filter, 1 /* optimize */, net) ==
-      -1) {
-    cerr << "[Ingress] BPF compile error: " << pcap_geterr(handle) << endl;
-    return -1;
-  }
-
-  // pcap_setfilter() loads the compiled BPF program into the kernel.
-  // From this point on, only packets matching our filter are delivered.
-  if (pcap_setfilter(handle, &compiled_filter) == -1) {
-    cerr << "[Ingress] BPF attach error: " << pcap_geterr(handle) << endl;
-    pcap_freecode(&compiled_filter);
-    return -1;
-  }
-
-  pcap_freecode(&compiled_filter);
-  cout << "[Ingress] BPF filter attached: \"" << filter << "\"" << endl;
-  return 0;
+  return -1; // Placeholder return value
 }
 
 int main() {
