@@ -71,3 +71,9 @@ add_executable(test_ipc_bridge
     tests/test_ipc_bridge.cpp
 )
 add_test(NAME test_ipc_bridge COMMAND test_ipc_bridge)
+
+add_executable(test_tls_sni_basic
+    tests/test_tls_sni_basic.cpp
+)
+add_test(NAME test_tls_sni_basic COMMAND test_tls_sni_basic)
+
