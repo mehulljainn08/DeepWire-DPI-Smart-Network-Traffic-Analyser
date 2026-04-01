@@ -23,6 +23,21 @@ inline std::optional<std::string> extract_sni(const uint8_t* data,
   // WARNING: You are parsing RAW pointers. Use strict bounds checking!
   // If `offset + amount > len`, return std::nullopt immediately.
 
+  // 1. Check if pointer is null 
+  if (data == nullptr) {
+    return std::nullopt;
+  }
+
+  // 2. Check minimum length (TLS Header needs at least 5 bytes) 
+  if (len < 5) {
+    return std::nullopt;
+  }
+
+  // 3. Check TLS handshake type (0x16)
+  if (data[0] != 0x16) {
+    return std::nullopt;
+  }
+
   return std::nullopt; // Placeholder return value
 }
 
