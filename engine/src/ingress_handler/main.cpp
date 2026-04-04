@@ -52,7 +52,7 @@ int compile_and_attach_bpf(pcap_t *handle, const char *filter,
     struct bpf_program bpf_prog;
 
     // Compiling the BPF filter string into bytecode
-    if (pcap_compile(handle, &bpf_prog, filter, 1, net) < 0) {
+    if (pcap_compile(handle, &bpf_prog, filter, 1, net) <= 0) {
         cout << "BPF failed: " << pcap_geterr(handle) << endl;
         return -1;
     }
@@ -67,7 +67,7 @@ int compile_and_attach_bpf(pcap_t *handle, const char *filter,
     // Setting the memory free
     pcap_freecode(&bpf_prog);
 
-  return -1; // Placeholder return value
+  return 0; // Placeholder return value
 }
 
 int main() {
