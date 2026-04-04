@@ -4,6 +4,7 @@ project(DeepWireEngine)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+enable_testing()
 
 # --- Find libpcap ---
 find_path(PCAP_INCLUDE_DIR pcap.h)
@@ -48,3 +49,31 @@ add_executable(ipc_service
     src/ipc_bridge/main.cpp
 )
 target_link_libraries(ipc_service ${PCAP_LIBRARY} pthread)
+
+# --- Unit Tests ---
+add_executable(test_ingress_handler
+    tests/test_ingress_handler.cpp
+)
+target_link_libraries(test_ingress_handler ${PCAP_LIBRARY})
+add_test(NAME test_ingress_handler COMMAND test_ingress_handler)
+
+add_executable(test_flow_state
+    tests/test_flow_state.cpp
+)
+add_test(NAME test_flow_state COMMAND test_flow_state)
+
+add_executable(test_protocol_inspec
+    tests/test_protocol_inspec.cpp
+)
+add_test(NAME test_protocol_inspec COMMAND test_protocol_inspec)
+
+add_executable(test_ipc_bridge
+    tests/test_ipc_bridge.cpp
+)
+add_test(NAME test_ipc_bridge COMMAND test_ipc_bridge)
+
+add_executable(test_tls_sni_basic
+    tests/test_tls_sni_basic.cpp
+)
+add_test(NAME test_tls_sni_basic COMMAND test_tls_sni_basic)
+

@@ -8,7 +8,7 @@ ingress_service
 state_service
 inspec_service
 ipc_service
-
+*.exe
 # === Go ===
 control-plane/control-plane
 

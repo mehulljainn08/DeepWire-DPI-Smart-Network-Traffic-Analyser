@@ -10,3 +10,4 @@ youtube.com
 facebook.com
 instagram.com
 tiktok.com
+malware.com

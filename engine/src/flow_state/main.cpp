@@ -17,10 +17,7 @@ int main() {
 
   // TODO: Your implementation goes here
 
-deepwire::ParsedPacket pkt;
 
-deepwire::FlowStatus status=deepwire::derive_status(pkt);
-deepwire::FlowKey key=deepwire::make_flow_key(pkt);
 
   return 0;
 }
