@@ -44,6 +44,28 @@ int compile_and_attach_bpf(pcap_t *handle, const char *filter,
   // 4. Use `pcap_setfilter()` to load the compiled bytecode into the kernel.
   // 5. Use `pcap_freecode()` to free the bytecode from memory when done.
   // 6. Return 0 on success, or -1 on failure.
+  if (!handle || !filter) {
+        cout << "Invalid" << endl;
+        return -1;
+    }
+
+    struct bpf_program bpf_prog;
+
+    // Compiling the BPF filter string into bytecode
+    if (pcap_compile(handle, &bpf_prog, filter, 1, net) < 0) {
+        cout << "BPF failed: " << pcap_geterr(handle) << endl;
+        return -1;
+    }
+
+    // Attaching the compiled filter to the pcap handle
+    if (pcap_setfilter(handle, &bpf_prog) < 0) {
+        cout << "Setting BPF filter failed: " << pcap_geterr(handle) << endl;
+        pcap_freecode(&bpf_prog);
+        return -1;
+    }
+
+    // Setting the memory free
+    pcap_freecode(&bpf_prog);
 
   return -1; // Placeholder return value
 }
