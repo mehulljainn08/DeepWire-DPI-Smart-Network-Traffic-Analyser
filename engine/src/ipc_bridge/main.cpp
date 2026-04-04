@@ -21,18 +21,29 @@
 #include <thread>
 using namespace std;
 
+// Shared queue holding FlowEvent objects
+std::queue<deepwire::FlowEvent> flow_queue;
+
+// Mutex to protect access to the queue
+std::mutex queue_mutex;
+
+// Mock producer: pushes one dummy event into the queue
+void producer() {
+    deepwire::FlowEvent event{}; // dummy event
+
+    // Lock mutex for thread-safe push
+    std::lock_guard<std::mutex> lock(queue_mutex);
+    flow_queue.push(event);
+}
+
 int main() {
     cout << "=== DeepWire DPI — IPC Bridge Service ===" << endl;
 
-    // TODO: Your implementation goes here
-    //
-    // Recommended flow:
-    //   1. Create a thread-safe queue (std::queue + std::mutex + std::condition_variable)
-    //   2. Open a Unix Domain Socket connection to /tmp/deepwire.sock
-    //   3. Producer thread: receive FlowEvent structs from upstream services
-    //   4. Consumer thread: dequeue events, serialize to JSON (matching
-    //      contracts/flow_event.json), and write to the socket
-    //   5. Handle connection drops and reconnection gracefully
+    // Start producer thread
+    std::thread t(producer);
+
+    // Wait for producer to finish
+    t.join();
 
     return 0;
 }
