@@ -11,11 +11,16 @@
 #include "../common/flow_data.h"
 #include <iostream>
 #include <unordered_map>
+#include "flow_state_logic.h"
 using namespace std;
 int main() {
-  cout << "=== DeepWire DPI — Flow State Service ===" << endl;
 
   // TODO: Your implementation goes here
+
+deepwire::ParsedPacket pkt;
+
+deepwire::FlowStatus status=deepwire::derive_status(pkt);
+deepwire::FlowKey key=deepwire::make_flow_key(pkt);
 
   return 0;
 }
