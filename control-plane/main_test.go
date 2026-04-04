@@ -7,7 +7,10 @@ import (
 )
 
 func TestIsBlockedMatchesExactAndSubdomain(t *testing.T) {
-	blocklist := []string{"youtube.com", "example.org"}
+	blocklist := map[string]struct{}{
+		"youtube.com": {},
+		"example.org": {},
+	}
 
 	if !isBlocked("youtube.com", blocklist) {
 		t.Fatal("expected exact domain to be blocked")
@@ -31,12 +34,18 @@ func TestLoadBlocklistSkipsCommentsAndWhitespace(t *testing.T) {
 		t.Fatalf("write blocklist: %v", err)
 	}
 
-	domains := loadBlocklist(path)
+	domains, err := loadBlocklist(path)
+	if err != nil {
+		t.Fatalf("loadBlocklist error: %v", err)
+	}
 	if len(domains) != 2 {
 		t.Fatalf("expected 2 domains, got %d", len(domains))
 	}
-	if domains[0] != "YouTube.com" || domains[1] != "example.org" {
-		t.Fatalf("unexpected domains: %#v", domains)
+	if _, ok := domains["YouTube.com"]; !ok {
+		t.Errorf("missing YouTube.com in domains")
+	}
+	if _, ok := domains["example.org"]; !ok {
+		t.Errorf("missing example.org in domains")
 	}
 }
 
@@ -52,7 +61,8 @@ func TestLoadGeoIPDatabaseReflectsFilePresence(t *testing.T) {
 		t.Fatalf("write mmdb stub: %v", err)
 	}
 
-	if !loadGeoIPDatabase(path) {
-		t.Fatal("expected existing Geo-IP database file to return true")
+	// Because geoip2.Open is used, an invalid format should correctly fail.
+	if loadGeoIPDatabase(path) {
+		t.Fatal("expected existing but invalid Geo-IP database file to return false validation")
 	}
 }
