@@ -8,17 +8,16 @@
 // Run:   ./inspec_service
 // ============================================================================
 
-#include <iostream>
-#include <cstdint>
-#include <string>
-#include <optional>
 #include "../common/flow_data.h"
+#include <cstdint>
+#include <iostream>
+#include <optional>
+#include <string>
 
-int main()
-{
-    std::cout << "=== DeepWire DPI — Protocol Inspector ===" << std::endl;
+int main() {
+  std::cout << "=== DeepWire DPI — Protocol Inspector ===" << std::endl;
 
-    // TODO: Your implementation goes here
+  // TODO: Your implementation goes here
 
-    return 0;
+  return 0;
 }

@@ -16,10 +16,14 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/oschwald/geoip2-golang"
 )
@@ -50,6 +54,13 @@ const blocklistPath = "rules/blocklist.txt"
 
 var GeoDB *geoip2.Reader
 
+type data struct {
+	Count       int
+	WindowStart time.Time
+}
+
+var NewFlowMap = make(map[string]data)
+
 // allowedCountries is the set of 2-letter ISO country codes that are
 // permitted to communicate with our network.  Any source IP resolving
 // to a country NOT in this set will be blocked at the OS firewall level.
@@ -62,25 +73,35 @@ var allowedCountries = map[string]bool{
 func main() {
 	fmt.Println("=== DeepWire Logic Test ===")
 
-	// 1. Test the Zero-Allocation Blocklist
-	fmt.Println("\n[1] Testing Domain Stripping...")
-	list, err := loadBlocklist(blocklistPath)
+	os.Remove(socketPath)
+	sock, err := net.Listen("unix", socketPath)
+
 	if err != nil {
-		fmt.Println("Failed to load blocklist:", err)
-	} else {
-		// Try a subdomain that isn't explicitly in the txt file!
-		blocked := isBlocked("track.ads.malware.com", list)
-		fmt.Printf("Is 'track.ads.malware.com' blocked? %v\n", blocked)
+		fmt.Println("Error listening on socket:", err)
+		return
+	}
+	blocklist, err := loadBlocklist(blocklistPath)
+	if err != nil {
+		fmt.Println("Error loading blocklist:", err)
+		return
 	}
 
-	// 2. Test the Geo-IP Engine
-	fmt.Println("\n[2] Testing Geo-IP Resolution...")
+	defer sock.Close()
+
 	success := loadGeoIPDatabase(geoIPDatabasePath)
-	if success {
-		// 8.8.8.8 is Google's DNS (usually resolves to US)
-		country, allowed := checkGeoIP("8.8.8.8")
-		fmt.Printf("IP 8.8.8.8 -> Country: %s | Allowed: %v\n", country, allowed)
+	if success == false {
+		fmt.Println("Error loading Geo-IP database:")
+		return
 	}
+	for {
+		conn, err := sock.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection:", err)
+			continue
+		}
+		go handleConnection(conn, blocklist, true)
+	}
+
 }
 
 // handleConnection reads newline-delimited JSON from the C++ engine
@@ -92,6 +113,32 @@ func handleConnection(conn net.Conn, blocklist map[string]struct{}, geoIPEnabled
 
 	// --- Check domain blocklist ---
 	// TODO (Sprint 3): Execute iptables DROP rule
+
+	scanner := bufio.NewScanner(conn)
+
+	for line := scanner.Scan(); line; line = scanner.Scan() {
+		var flowEvent FlowEvent
+		err := json.Unmarshal(scanner.Bytes(), &flowEvent)
+		if err != nil {
+			fmt.Println("Error unmarshalling flow event:", err)
+			continue
+		}
+
+		country, allowed := checkGeoIP(flowEvent.SrcIP)
+		if allowed == false {
+			fmt.Println("Country not allowed:", country)
+			exec.Command("iptables", "-A", "INPUT", "-s", flowEvent.SrcIP, "-j", "DROP").Run()
+		}
+		blocked := isBlocked(flowEvent.SNIDomain, blocklist)
+		if blocked == true {
+			fmt.Println("Domain blocked:", flowEvent.SNIDomain)
+			err := exec.Command("iptables", "-A", "INPUT", "-s", flowEvent.SrcIP, "-j", "DROP").Run()
+			if err != nil {
+				fmt.Println("firewall error:", err)
+			}
+		}
+	}
+
 }
 
 // ============================================================================
@@ -150,7 +197,12 @@ func checkGeoIP(srcIP string) (countryCode string, allowed bool) {
 
 // allowedCountryList returns a sorted slice of allowed country codes for display.
 func allowedCountryList() []string {
-	return nil
+
+	var allowedCountrySlice []string
+	for country := range allowedCountries {
+		allowedCountrySlice = append(allowedCountrySlice, country)
+	}
+	return allowedCountrySlice
 }
 
 // blocklist functions
