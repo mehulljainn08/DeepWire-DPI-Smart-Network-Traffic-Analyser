@@ -38,6 +38,22 @@ inline std::optional<std::string> extract_sni(const uint8_t* data,
     return std::nullopt;
   }
 
+  // Read TLS record length (data[3] high byte , data[4] low byte)
+  uint16_t record_len = (data[3] << 8) | data[4];
+
+  //Bounds check (to prevent segmentation fault - don't read beyond memory)
+  if(5 + record_len > len) return std::nullopt;
+
+  //Jump to handshake Layer (tls header = 5bytes )
+  const uint8_t* current = data + 5;
+
+  //Before accessing mem , checking pointer is still inside valid buffer or not
+  if(current >= data + len) return std::nullopt;
+
+  if(current[0] == 0x01){
+    return std::make_optional<std::string>("CLIENT_HELLO_FOUND");
+  }
+
   return std::nullopt; // Placeholder return value
 }
 
