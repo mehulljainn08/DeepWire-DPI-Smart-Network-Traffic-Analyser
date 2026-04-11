@@ -62,6 +62,11 @@ add_executable(test_flow_state
 )
 add_test(NAME test_flow_state COMMAND test_flow_state)
 
+add_executable(test_session_table
+    tests/test_session_table.cpp
+)
+add_test(NAME test_session_table COMMAND test_session_table)
+
 add_executable(test_protocol_inspec
     tests/test_protocol_inspec.cpp
 )
