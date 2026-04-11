@@ -24,7 +24,7 @@ inline deepwire::FlowStatus derive_status(const deepwire::ParsedPacket& packet) 
   // 2. If it's a synchronization packet (SYN) without an ACK, it's a brand new connection request. Return NEW_FLOW.
   // 3. Otherwise, it belongs to an ongoing data transfer. Return EXISTING_FLOW.
   
-  // SYN- start tcp connection
+// SYN- start tcp connection
 // ack- response to syn
 // fin- end tcp connection
 // rst- reset tcp connection
@@ -36,7 +36,8 @@ if(packet.flag_syn && !packet.flag_ack)
 return deepwire::FlowStatus::NEW_FLOW; // syn=1 and ack=0
 
 
-  return deepwire::FlowStatus::EXISTING_FLOW; // Placeholder return
+  return deepwire::FlowStatus::EXISTING_FLOW; // ack=1
+  // Placeholder return
 }
 
 }  // namespace deepwire::flow_state
