@@ -12,9 +12,57 @@
 #include "../common/flow_data.h"
 #include <cstring>
 #include <iostream>
-#include <pcap/pcap.h>
+#include <pcap.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/if_ether.h>
+#include <arpa/inet.h>
 using namespace std;
 
+void packet_handler(u_char *args,
+                    const struct pcap_pkthdr *header,
+                    const u_char *packet) {
+
+    // Ethernet Header 
+    struct ether_header *eth = (struct ether_header *)packet;
+
+    // Only IPv4
+    if (ntohs(eth->ether_type) != ETHERTYPE_IP) {
+        return;
+    }
+
+    // IP Header 
+    struct ip *ip_hdr =
+        (struct ip *)((u_char *)eth + sizeof(struct ether_header));
+
+    // Only TCP
+    if (ip_hdr->ip_p != IPPROTO_TCP) {
+        return;
+    }
+
+    int ip_header_len = ip_hdr->ip_hl * 4;
+
+    // TCP Header 
+    struct tcphdr *tcp_hdr =
+        (struct tcphdr *)((u_char *)ip_hdr + ip_header_len);
+
+    //  Extract fields 
+    string src_ip = inet_ntoa(ip_hdr->ip_src);
+    string dst_ip = inet_ntoa(ip_hdr->ip_dst);
+
+    uint16_t src_port = ntohs(tcp_hdr->th_sport);
+    uint16_t dst_port = ntohs(tcp_hdr->th_dport);
+
+    // Output 
+    deepwire::ParsedPacket pkt;
+
+    pkt.src_ip = src_ip;
+    pkt.dst_ip = dst_ip;
+    pkt.src_port = src_port;
+    pkt.dst_port = dst_port;
+
+    process_packet_state(pkt);
+}
 // BPF Filter Configuration
 
 // A Berkeley Packet Filter (BPF) is compiled and loaded into the OS kernel
@@ -52,7 +100,7 @@ int compile_and_attach_bpf(pcap_t *handle, const char *filter,
     struct bpf_program bpf_prog;
 
     // Compiling the BPF filter string into bytecode
-    if (pcap_compile(handle, &bpf_prog, filter, 1, net) <= 0) {
+    if (pcap_compile(handle, &bpf_prog, filter, 1, net) < 0) {
         cout << "BPF failed: " << pcap_geterr(handle) << endl;
         return -1;
     }
@@ -77,10 +125,38 @@ int main() {
   //
   // Recommended flow:
   //   1. pcap_lookupdev()  — find the default network interface
+    char errbuf[PCAP_ERRBUF_SIZE];
+    char* dev = pcap_lookupdev(errbuf);
+    if (dev == NULL) {
+        cout << errbuf << endl;
+        return 1;
+    } else {
+        cout << "Using device: " << dev << endl;
+    }
   //   2. pcap_lookupnet()  — get the network address & mask (needed for BPF)
+    bpf_u_int32 net;
+    bpf_u_int32 mask;
+
+    if (pcap_lookupnet(dev, &net, &mask, errbuf) < 0) {
+        cout << errbuf << endl;
+        net = 0;
+        mask = PCAP_NETMASK_UNKNOWN;
+    }
   //   3. pcap_open_live()  — open the interface in promiscuous mode
+  pcap_t* handle = pcap_open_live(dev, BUFSIZ, 1, 1000, errbuf);
+  if (handle == NULL) {
+      cerr << "Open failed: " << errbuf << endl;
+      return 1;
+  }
   //   4. compile_and_attach_bpf(handle, BPF_FILTER_EXPRESSION, net)
+  if (compile_and_attach_bpf(handle, BPF_FILTER_EXPRESSION, mask) < 0) {
+    cout<< "BPF attach failed" << endl;
+    return 1;
+  }
+  cout<<"Success"<<endl;
   //   5. pcap_loop()       — start the capture loop with a packet callback
+  pcap_loop(handle, 0, packet_handler, NULL); // 0 -> capture all packets
+
   //   6. In the callback, strip Ethernet → IPv4 → TCP headers and populate
   //      a deepwire::ParsedPacket struct for downstream consumers.
 
