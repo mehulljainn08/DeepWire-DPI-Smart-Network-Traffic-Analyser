@@ -54,10 +54,14 @@ void packet_handler(u_char *args,
     uint16_t dst_port = ntohs(tcp_hdr->th_dport);
 
     // Output 
-    cout << "Target TCP packet captured! "
-         << "Source IP: " << src_ip
-         << ", Dest Port: " << dst_port
-         << endl;
+    deepwire::ParsedPacket pkt;
+
+    pkt.src_ip = src_ip;
+    pkt.dst_ip = dst_ip;
+    pkt.src_port = src_port;
+    pkt.dst_port = dst_port;
+
+    process_packet_state(pkt);
 }
 // BPF Filter Configuration
 
