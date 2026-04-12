@@ -24,9 +24,12 @@ include_directories(
 
 # --- Ingress Handler Service ---
 # Responsible for raw pcap capture and Ethernet/IP/TCP header stripping
+# Also links the flow_state module for in-process session tracking.
 add_executable(ingress_service
     src/ingress_handler/main.cpp
+    src/flow_state/main.cpp
 )
+target_compile_definitions(ingress_service PRIVATE UNIT_TEST)
 target_link_libraries(ingress_service ${PCAP_LIBRARY})
 
 # --- Flow State Service ---

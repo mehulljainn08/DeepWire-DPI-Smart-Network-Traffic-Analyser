@@ -4,6 +4,10 @@
 #include <cassert>
 #include <unordered_map>
 
+// Provide the session_table definition required by the extern in the header
+std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHash>
+    session_table;
+
 int main() {
   deepwire::ParsedPacket syn_packet{
       "192.168.1.10", "93.184.216.34", 49152, 443, "TCP", true, false,
