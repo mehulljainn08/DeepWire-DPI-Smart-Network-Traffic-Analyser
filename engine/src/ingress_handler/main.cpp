@@ -57,9 +57,9 @@ void packet_handler(u_char *args,
     deepwire::ParsedPacket pkt;
 
     pkt.src_ip = src_ip;
-    pkt.dst_ip = dest_ip;
+    pkt.dest_ip = dst_ip;
     pkt.src_port = src_port;
-    pkt.dst_port = dest_port;
+    pkt.dest_port = dst_port;
 
     process_packet_state(pkt);
 }
