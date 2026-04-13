@@ -50,11 +50,141 @@ inline std::optional<std::string> extract_sni(const uint8_t* data,
   //Before accessing mem , checking pointer is still inside valid buffer or not
   if(current >= data + len) return std::nullopt;
 
-  if(current[0] == 0x01){
-    return std::make_optional<std::string>("CLIENT_HELLO_FOUND");
+  // if(current[0] == 0x01){
+  //   return std::make_optional<std::string>("CLIENT_HELLO_FOUND");
+  // }
+
+  if(current[0] != 0x01){
+    return std::nullopt;
   }
 
-  return std::nullopt; // Placeholder return value
+  // Create endpoint for safety.
+  const uint8_t* const end = data + len;
+
+  // Handshake header must be present.
+  if (current + 4 > end) {
+    return std::nullopt;
+  }
+
+  if (current[0] != 0x01) {
+    return std::nullopt;
+  }
+
+  uint32_t handshake_len = (static_cast<uint32_t>(current[1]) << 16) |
+                           (static_cast<uint32_t>(current[2]) << 8) |
+                           static_cast<uint32_t>(current[3]);
+  current += 4;
+
+  const uint8_t* const record_end = data + 5 + record_len;
+  const uint8_t* const handshake_end = current + handshake_len;
+  if (handshake_end > record_end || handshake_end > end) {
+    return std::nullopt;
+  }
+
+  // Skip fixed ClientHello fields: version(2) + random(32).
+  if (current + 34 > handshake_end) {
+    return std::nullopt;
+  }
+  current += 34;
+
+  // Session ID.
+  if (current + 1 > handshake_end) {
+    return std::nullopt;
+  }
+  uint8_t session_len = current[0];
+  current += 1;
+  if (current + session_len > handshake_end) {
+    return std::nullopt;
+  }
+  current += session_len;
+
+  // Cipher suites.
+  if (current + 2 > handshake_end) {
+    return std::nullopt;
+  }
+  uint16_t cipher_len = (static_cast<uint16_t>(current[0]) << 8) |
+                        static_cast<uint16_t>(current[1]);
+  current += 2;
+  if (current + cipher_len > handshake_end) {
+    return std::nullopt;
+  }
+  current += cipher_len;
+
+  // Compression methods.
+  if (current + 1 > handshake_end) {
+    return std::nullopt;
+  }
+  uint8_t comp_len = current[0];
+  current += 1;
+  if (current + comp_len > handshake_end) {
+    return std::nullopt;
+  }
+  current += comp_len;
+
+  // Extensions may be absent.
+  if (current == handshake_end) {
+    return std::nullopt;
+  }
+
+  if (current + 2 > handshake_end) {
+    return std::nullopt;
+  }
+  uint16_t extensions_len = (static_cast<uint16_t>(current[0]) << 8) |
+                            static_cast<uint16_t>(current[1]);
+  current += 2;
+  const uint8_t* const extensions_end = current + extensions_len;
+  if (extensions_end > handshake_end) {
+    return std::nullopt;
+  }
+
+  while (current + 4 <= extensions_end) {
+    uint16_t ext_type = (static_cast<uint16_t>(current[0]) << 8) |
+                        static_cast<uint16_t>(current[1]);
+    uint16_t ext_len = (static_cast<uint16_t>(current[2]) << 8) |
+                       static_cast<uint16_t>(current[3]);
+    current += 4;
+
+    if (current + ext_len > extensions_end) {
+      return std::nullopt;
+    }
+
+    if (ext_type == 0x0000) {
+      if (current + 2 > extensions_end) {
+        return std::nullopt;
+      }
+      uint16_t name_list_len = (static_cast<uint16_t>(current[0]) << 8) |
+                               static_cast<uint16_t>(current[1]);
+      current += 2;
+      const uint8_t* const name_list_end = current + name_list_len;
+      if (name_list_end > extensions_end) {
+        return std::nullopt;
+      }
+
+      while (current + 3 <= name_list_end) {
+        uint8_t name_type = current[0];
+        uint16_t name_len = (static_cast<uint16_t>(current[1]) << 8) |
+                            static_cast<uint16_t>(current[2]);
+        current += 3;
+
+        if (current + name_len > name_list_end) {
+          return std::nullopt;
+        }
+
+        if (name_type == 0x00) {
+          return std::make_optional<std::string>(
+              reinterpret_cast<const char*>(current), name_len);
+        }
+
+        current += name_len;
+      }
+
+      return std::nullopt;
+    }
+
+    current += ext_len;
+  }
+
+  return std::nullopt;
 }
 
 }  // namespace deepwire::protocol_inspec
