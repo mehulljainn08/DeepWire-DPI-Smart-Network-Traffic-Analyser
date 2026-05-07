@@ -19,12 +19,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"os"
-	"os/signal"
+	"os/exec"
 	"strings"
-	"syscall"
+	"time"
+
+	"github.com/oschwald/geoip2-golang"
 )
 
 // FlowEvent matches the IPC contract in contracts/flow_event.json
@@ -49,6 +50,16 @@ const socketPath = "/tmp/deepwire.sock"
 // Place the file in the control-plane/rules/ directory.
 // ============================================================================
 const geoIPDatabasePath = "rules/GeoLite2-Country.mmdb"
+const blocklistPath = "rules/blocklist.txt"
+
+var GeoDB *geoip2.Reader
+
+type data struct {
+	Count       int
+	WindowStart time.Time
+}
+
+var NewFlowMap = make(map[string]data)
 
 // allowedCountries is the set of 2-letter ISO country codes that are
 // permitted to communicate with our network.  Any source IP resolving
@@ -60,103 +71,74 @@ var allowedCountries = map[string]bool{
 }
 
 func main() {
-	fmt.Println("=== DeepWire DPI — Control Plane ===")
+	fmt.Println("=== DeepWire Logic Test ===")
 
-	// --- Initialize Geo-IP database ---
-	geoIPReady := loadGeoIPDatabase(geoIPDatabasePath)
-	if geoIPReady {
-		fmt.Printf("[Control] Geo-IP database loaded. Allowed countries: %v\n", allowedCountryList())
-	} else {
-		fmt.Println("[Control] ⚠️  Geo-IP database not loaded — country filtering DISABLED")
-	}
-
-	// --- Load blocklist ---
-	blocklist := loadBlocklist("rules/blocklist.txt")
-	fmt.Printf("[Control] Loaded %d blocked domains\n", len(blocklist))
-	for _, domain := range blocklist {
-		fmt.Printf("  🚫 %s\n", domain)
-	}
-
-	// --- Clean up old socket file ---
 	os.Remove(socketPath)
+	sock, err := net.Listen("unix", socketPath)
 
-	// --- Create Unix Domain Socket listener ---
-	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
-		log.Fatalf("[ERROR] Could not create socket: %v", err)
+		fmt.Println("Error listening on socket:", err)
+		return
 	}
-	defer listener.Close()
-	defer os.Remove(socketPath)
+	blocklist, err := loadBlocklist(blocklistPath)
+	if err != nil {
+		fmt.Println("Error loading blocklist:", err)
+		return
+	}
 
-	fmt.Printf("[Control] Listening on %s\n", socketPath)
-	fmt.Println("[Control] Waiting for C++ engine connections...")
+	defer sock.Close()
 
-	// --- Graceful shutdown on Ctrl+C ---
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigChan
-		fmt.Println("\n[Control] Shutting down...")
-		listener.Close()
-		os.Remove(socketPath)
-		os.Exit(0)
-	}()
-
-	// --- Accept connections ---
+	success := loadGeoIPDatabase(geoIPDatabasePath)
+	if success == false {
+		fmt.Println("Error loading Geo-IP database:")
+		return
+	}
 	for {
-		conn, err := listener.Accept()
+		conn, err := sock.Accept()
 		if err != nil {
-			log.Printf("[WARN] Accept error: %v", err)
+			fmt.Println("Error accepting connection:", err)
 			continue
 		}
-		fmt.Println("[Control] Engine connected!")
-		go handleConnection(conn, blocklist, geoIPReady)
+		go handleConnection(conn, blocklist, true)
 	}
+
 }
 
 // handleConnection reads newline-delimited JSON from the C++ engine
-func handleConnection(conn net.Conn, blocklist []string, geoIPEnabled bool) {
-	defer conn.Close()
+func handleConnection(conn net.Conn, blocklist map[string]struct{}, geoIPEnabled bool) {
+	// TODO: Read and parse JSON from connection into FlowEvent
+
+	// --- Geo-IP country check (runs BEFORE blocklist for early rejection) ---
+	// TODO (Sprint 4): Execute iptables DROP rule for this source IP
+
+	// --- Check domain blocklist ---
+	// TODO (Sprint 3): Execute iptables DROP rule
+
 	scanner := bufio.NewScanner(conn)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		var event FlowEvent
-		if err := json.Unmarshal([]byte(line), &event); err != nil {
-			log.Printf("[WARN] Invalid JSON: %v", err)
+	for line := scanner.Scan(); line; line = scanner.Scan() {
+		var flowEvent FlowEvent
+		err := json.Unmarshal(scanner.Bytes(), &flowEvent)
+		if err != nil {
+			fmt.Println("Error unmarshalling flow event:", err)
 			continue
 		}
 
-		fmt.Printf("[Control] Flow: %s:%d → %s:%d | SNI: %s | Status: %s\n",
-			event.SrcIP, event.SrcPort,
-			event.DestIP, event.DestPort,
-			event.SNIDomain, event.Status)
-
-		// --- Geo-IP country check (runs BEFORE blocklist for early rejection) ---
-		if geoIPEnabled {
-			countryCode, allowed := checkGeoIP(event.SrcIP)
-			if !allowed {
-				fmt.Printf("[Control] 🌍 GEO-BLOCKED: %s (country: %s) → Injecting firewall rule\n",
-					event.SrcIP, countryCode)
-				// TODO (Sprint 4): Execute iptables DROP rule for this source IP
-				continue // Skip further processing — this packet is rejected
-			}
-			fmt.Printf("[Control] 🌍 Geo-IP OK: %s → %s\n", event.SrcIP, countryCode)
+		country, allowed := checkGeoIP(flowEvent.SrcIP)
+		if allowed == false {
+			fmt.Println("Country not allowed:", country)
+			exec.Command("iptables", "-A", "INPUT", "-s", flowEvent.SrcIP, "-j", "DROP").Run()
 		}
-
-		// --- Check domain blocklist ---
-		if isBlocked(event.SNIDomain, blocklist) {
-			fmt.Printf("[Control] 🚨 BLOCKED: %s → Injecting firewall rule for %s\n",
-				event.SNIDomain, event.DestIP)
-
-			// TODO (Sprint 3): Execute iptables DROP rule
-			// cmd := exec.Command("iptables", "-A", "OUTPUT", "-d", event.DestIP, "-j", "DROP")
-			// cmd.Run()
+		blocked := isBlocked(flowEvent.SNIDomain, blocklist)
+		if blocked == true {
+			fmt.Println("Domain blocked:", flowEvent.SNIDomain)
+			err := exec.Command("iptables", "-A", "INPUT", "-s", flowEvent.SrcIP, "-j", "DROP").Run()
+			if err != nil {
+				fmt.Println("firewall error:", err)
+			}
 		}
 	}
 
-	fmt.Println("[Control] Engine disconnected.")
 }
 
 // ============================================================================
@@ -176,18 +158,18 @@ func handleConnection(conn net.Conn, blocklist []string, geoIPEnabled bool) {
 //
 // Store the *geoip2.Reader in a package-level variable for use in checkGeoIP().
 func loadGeoIPDatabase(path string) bool {
-	// Check if the .mmdb file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		log.Printf("[Control] Geo-IP database not found at: %s", path)
-		log.Printf("[Control] Download from: https://www.maxmind.com/en/geolite2/signup")
-		log.Printf("[Control] Place GeoLite2-Country.mmdb in the rules/ directory")
+	// TODO: Open the database using geoip2.Open(path)
+	// Store the reader handle for use in checkGeoIP()
+	var err error
+	GeoDB, err = geoip2.Open(path)
+
+	if err != nil {
+		fmt.Println("Error opening Geo-IP database:", err)
 		return false
 	}
 
-	// TODO: Open the database using geoip2.Open(path)
-	// Store the reader handle for use in checkGeoIP()
-	fmt.Printf("[Control] Geo-IP database found: %s\n", path)
 	return true
+
 }
 
 // checkGeoIP looks up the source IP in the MaxMind database and returns
@@ -201,67 +183,68 @@ func loadGeoIPDatabase(path string) bool {
 //	code := record.Country.IsoCode
 //	return code, allowedCountries[code]
 func checkGeoIP(srcIP string) (countryCode string, allowed bool) {
-	// Stub: fail-open until the .mmdb reader is integrated
-	return "??", true
+	srcIP1 := net.ParseIP(srcIP)
+	record, err := GeoDB.Country(srcIP1)
+
+	if err != nil {
+		return "??", true
+	}
+	country := record.Country.IsoCode
+
+	return country, allowedCountries[country]
+
 }
 
 // allowedCountryList returns a sorted slice of allowed country codes for display.
 func allowedCountryList() []string {
-	list := make([]string, 0, len(allowedCountries))
-	for code := range allowedCountries {
-		list = append(list, code)
+
+	var allowedCountrySlice []string
+	for country := range allowedCountries {
+		allowedCountrySlice = append(allowedCountrySlice, country)
 	}
-	return list
+	return allowedCountrySlice
 }
 
-// ============================================================================
-// Blocklist Functions
-// ============================================================================
+// blocklist functions
+// loadBlocklist reads domains from a file
+func loadBlocklist(filename string) (map[string]struct{}, error) {
 
-// loadBlocklist reads domains from a file (one per line)
-func loadBlocklist(filename string) []string {
-	var domains []string
-
-	file, err := os.Open(filename)
+	blocklist, err := os.ReadFile(filename)
 	if err != nil {
-		// No blocklist file — create a default one
-		fmt.Printf("[Control] No blocklist found, creating default %s\n", filename)
-		defaultDomains := []string{
-			"youtube.com",
-			"facebook.com",
-			"instagram.com",
-			"tiktok.com",
-		}
-		f, _ := os.Create(filename)
-		for _, d := range defaultDomains {
-			f.WriteString(d + "\n")
-		}
-		f.Close()
-		return defaultDomains
+		fmt.Println("Error reading blocklist:", err)
+		return nil, err
 	}
-	defer file.Close()
+	lines := strings.Split(string(blocklist), "\n")
+	set := make(map[string]struct{})
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		domain := strings.TrimSpace(scanner.Text())
-		if domain != "" && !strings.HasPrefix(domain, "#") {
-			domains = append(domains, domain)
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
+		set[line] = struct{}{}
 	}
-	return domains
+	return set, nil
 }
 
 // isBlocked checks if a domain matches the blocklist (exact or subdomain match)
-func isBlocked(domain string, blocklist []string) bool {
-	if domain == "" {
-		return false
-	}
-	domain = strings.ToLower(domain)
-	for _, blocked := range blocklist {
-		blocked = strings.ToLower(blocked)
-		if domain == blocked || strings.HasSuffix(domain, "."+blocked) {
+func isBlocked(domain string, blocklist map[string]struct{}) bool {
+
+	for {
+
+		_, ok := blocklist[domain]
+		if ok {
 			return true
 		}
+
+		dotIndex := strings.IndexByte(domain, '.')
+
+		if dotIndex == -1 {
+			break
+		}
+
+		domain = domain[dotIndex+1:]
 	}
+
 	return false
 }

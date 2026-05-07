@@ -1,0 +1,105 @@
+#include "../src/protocol_inspec/tls_sni_parser.h"
+#include <cassert>
+#include <vector>
+#include <string>
+
+int main() {
+
+  // Test 1: invalid record type (not 0x16)
+  const std::vector<unsigned char> invalid_record = {
+      0x15, 0x03, 0x03, 0x00, 0x00};
+  auto missing = deepwire::protocol_inspec::extract_sni(
+      invalid_record.data(), invalid_record.size());
+  assert(!missing.has_value());
+
+  // Test 2: dangerously short array
+  const std::vector<unsigned char> short_record = {
+      0x16, 0x00, 0x00};  
+  auto missing_short = deepwire::protocol_inspec::extract_sni(
+      short_record.data(), short_record.size());
+  assert(!missing_short.has_value());
+
+  // Test 3: null pointer
+  auto missing_null =
+      deepwire::protocol_inspec::extract_sni(nullptr, 10);
+  assert(!missing_null.has_value());
+
+  // Test 4: VALID TLS CLIENT HELLO
+    const std::vector<unsigned char> client_hello = {
+        // TLS Header
+        0x16, 0x03, 0x01, 0x00, 0x40,
+
+        // Handshake Header
+        0x01, 0x00, 0x00, 0x3c,
+
+        // Version
+        0x03, 0x03,
+
+        // Random (32 bytes)
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+        // Session ID (length = 2)
+        0x02, 0xAA, 0xBB,
+
+        // Cipher Suites (length = 4)
+        0x00, 0x04, 0x00, 0x2F, 0x00, 0x35,
+
+        // Compression (length = 1)
+        0x01, 0x00,
+
+        // Extensions length
+        0x00, 0x0d,
+
+        // Server Name extension
+        0x00, 0x00, 0x00, 0x09,
+        0x00, 0x07, 0x00, 0x00, 0x04,
+        0x74, 0x65, 0x73, 0x74
+    };
+
+    auto result = deepwire::protocol_inspec::extract_sni(
+      client_hello.data(), client_hello.size());
+
+    assert(result.has_value());
+    assert(result.value() == "test");
+
+// Test 5: Different Session ID length
+    const std::vector<unsigned char> client_hello_var = {
+        0x16, 0x03, 0x01, 0x00, 0x41,
+        0x01, 0x00, 0x00, 0x3d,
+        0x03, 0x03,
+
+        // Random
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+        0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+
+        // Session ID (length = 5)
+        0x05, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+
+        // Cipher Suites
+        0x00, 0x02, 0x00, 0x2F,
+
+        // Compression
+        0x01, 0x00,
+
+        // Extensions length
+        0x00, 0x0d,
+
+        // Server Name extension
+        0x00, 0x00, 0x00, 0x09,
+        0x00, 0x07, 0x00, 0x00, 0x04,
+        0x74, 0x65, 0x73, 0x74
+    };
+
+    auto result2 = deepwire::protocol_inspec::extract_sni(
+      client_hello_var.data(), client_hello_var.size());
+
+    assert(result2.has_value());
+    assert(result2.value() == "test");
+
+  return 0;
+}
