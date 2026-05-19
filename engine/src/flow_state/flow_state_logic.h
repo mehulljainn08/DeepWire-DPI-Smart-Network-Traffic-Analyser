@@ -1,5 +1,7 @@
 #pragma once
-
+#include <unordered_map>
+#include <iostream>
+#include <ctime>
 #include "../common/flow_data.h"
 
 namespace deepwire::flow_state {
@@ -65,9 +67,10 @@ inline void process_packet_state(const deepwire::ParsedPacket& pkt){
         record.protocol = pkt.protocol;
         record.sni_domain = "";
         record.status = status;
+        record.last_seen = pkt.timestamp;
 
     session_table.insert({key,record});
-    cout << "NEW_FLOW inserted\n";
+    std::cout << "NEW_FLOW inserted\n";
   }
 
   else if(status==deepwire::FlowStatus::EXISTING_FLOW){
@@ -78,10 +81,11 @@ inline void process_packet_state(const deepwire::ParsedPacket& pkt){
 
     if(it!=session_table.end()){
       it->second.status = status;
-      cout << "EXISTING_FLOW found and updated\n";
+      it->second.last_seen = pkt.timestamp; // update last seen time
+      std::cout << "EXISTING_FLOW found and updated\n";
     }
     else
-    cout << "EXISTING_FLOW not found\n";
+    std::cout << "EXISTING_FLOW not found\n";
   }
 
   else if (status == deepwire::FlowStatus::CLOSED)
@@ -89,9 +93,23 @@ inline void process_packet_state(const deepwire::ParsedPacket& pkt){
   //through .erase(key)
     {
         session_table.erase(key);
-        cout << "CLOSED flow erase key\n";
+        std::cout << "CLOSED flow erase key\n";
     }
 
+}
+
+inline void sweep_stale_connections(){
+  std::time_t now=std::time(nullptr); // get current time
+  auto it=session_table.begin();
+  while(it!=session_table.end()){ // iterate through session_table
+    if(now-it->second.last_seen>30)
+    {  
+      std::cout<< "Flow Timeout: Evicted silent connection.\n";
+      it=session_table.erase(it); // erase the key and move to next key without losing the iterator
+    }
+    else 
+    it++;
+  }
 }
 
 }  // namespace deepwire::flow_state

@@ -15,7 +15,7 @@
 using namespace std;
 
 using namespace deepwire::flow_state;
-std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHash> session_table;
+std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHash> deepwire::flow_state:: session_table;
 
 
 #ifndef UNIT_TEST
