@@ -27,6 +27,7 @@ struct FlowRecord {
     std::string protocol;       // "TCP" or "UDP"
     std::string sni_domain;     // Populated by Protocol Inspector (empty until then)
     FlowStatus  status;         // Current lifecycle state
+    std::time_t last_seen;      // Timestamp of the last packet in the flow
 };
 
 // ============================================================================

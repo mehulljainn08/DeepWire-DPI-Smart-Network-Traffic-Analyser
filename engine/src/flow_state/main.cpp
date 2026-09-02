@@ -14,12 +14,9 @@
 
 using namespace std;
 
-// ============================================================================
-// Single definition of the session table.
-// The header (flow_state_logic.h) declares it as `extern`; we define it here.
-// ============================================================================
-std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHash>
-    session_table;
+using namespace deepwire::flow_state;
+std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHash> deepwire::flow_state:: session_table;
+
 
 #ifndef UNIT_TEST
 int main() {
