@@ -9,9 +9,9 @@
 // ============================================================================
 
 #include "../common/flow_data.h"
-#include <iostream>
-#include <unordered_map>
 #include "flow_state_logic.h"
+#include <iostream>
+
 using namespace std;
 
 using namespace deepwire::flow_state;
@@ -20,10 +20,12 @@ std::unordered_map<deepwire::FlowKey, deepwire::FlowRecord, deepwire::FlowKeyHas
 
 #ifndef UNIT_TEST
 int main() {
+  cout << "=== DeepWire DPI — Flow State Service ===" << endl;
 
   // TODO: Your implementation goes here
-
-
+  // In the final architecture this service will receive ParsedPacket
+  // structs over IPC (Unix Domain Socket / shared memory) from the
+  // Ingress Handler, rather than processing them in-process.
 
   return 0;
 }
